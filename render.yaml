@@ -1,0 +1,26 @@
+# Trong Dung Studio V3.0 Build51 — Render Blueprint (repository root).
+# Web service is free to TRY; it sleeps when idle. A PERSISTENT Postgres database
+# must be created separately and set in DATABASE_URL. Do not use SQLite in prod.
+services:
+  - type: web
+    name: trong-dung-studio-license
+    runtime: python
+    region: singapore
+    plan: free
+    rootDir: OnlineService
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: LICENSE_ADMIN_TOKEN
+        sync: false
+      - key: ADMIN_ALLOWED_ORIGINS
+        sync: false
+      - key: ACCESS_LOG_RETENTION_DAYS
+        value: '30'
+      - key: TRUSTED_PROXY_CIDRS
+        value: ''
