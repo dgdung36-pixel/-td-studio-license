@@ -48,7 +48,8 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add WebAdmin OnlineService Docs .github/workflows/deploy-admin-pages.yml render.yaml DEPLOY_ADMIN_ON_IPHONE.md
+          git add WebAdmin OnlineService Docs render.yaml DEPLOY_ADMIN_ON_IPHONE.md
+          # Pages workflow is added through GitHub API after this commit; GITHUB_TOKEN cannot push workflow files.
           if ! git diff --cached --quiet; then
             git commit -m 'Import Build51 License Server and Admin sources'
             git push origin HEAD:main
