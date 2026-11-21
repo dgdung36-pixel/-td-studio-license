@@ -57,6 +57,8 @@ jobs:
           ! grep -i 'LICENSE_ADMIN_TOKEN' _site/admin/config.js
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
