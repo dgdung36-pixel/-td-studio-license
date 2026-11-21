@@ -1,0 +1,55 @@
+name: Import Trong Dung Studio Build51 from transfer payload
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "transfer/build51-part*"
+      - ".github/workflows/import-build51.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  import-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Restore verified Build51 source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install -q brotli
+          python3 - <<'PY'
+          import base64, brotli, io, tarfile, pathlib, hashlib
+          files=sorted(pathlib.Path('transfer').glob('build51-part*.b64'))
+          if len(files)!=7: raise SystemExit(f'Expected 7 payload parts; found {len(files)}')
+          parts=[x.read_text().strip() for x in files]
+          raw=brotli.decompress(base64.b64decode(''.join(parts),validate=True))
+          root=pathlib.Path('.').resolve()
+          with tarfile.open(fileobj=io.BytesIO(raw),mode='r:') as tar:
+              members=tar.getmembers()
+              if len(members)!=19: raise SystemExit(f'Expected 19 sources; found {len(members)}')
+              for m in members:
+                  dest=(root / m.name).resolve()
+                  if not m.isfile() or not dest.is_relative_to(root):
+                      raise SystemExit('Unsafe archive entry: '+m.name)
+              tar.extractall(path=root, filter='data')
+          print('Restored 19 Build51 files. Tar SHA256:',hashlib.sha256(raw).hexdigest())
+          PY
+          test -f WebAdmin/index.html
+          test -f OnlineService/license_service.py
+          test -f .github/workflows/deploy-admin-pages.yml
+      - name: Commit restored source to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add WebAdmin OnlineService Docs .github/workflows/deploy-admin-pages.yml render.yaml DEPLOY_ADMIN_ON_IPHONE.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'Import Build51 License Server and Admin sources'
+            git push origin HEAD:main
+          fi
