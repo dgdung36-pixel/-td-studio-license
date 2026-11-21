@@ -1,0 +1,66 @@
+name: TD Studio Build51 - Deploy Admin to GitHub Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'WebAdmin/**'
+      - '.github/workflows/deploy-admin-pages.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static Admin checks
+        run: python3 -m unittest discover -s WebAdmin -p test_static.py -v && node --check WebAdmin/admin.js
+      - name: Validate public origin and stage Admin pages
+        env:
+          AOV_LICENSE_SERVER_URL: ${{ vars.AOV_LICENSE_SERVER_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _site/admin
+          cp WebAdmin/index.html WebAdmin/admin.css WebAdmin/admin.js _site/admin/
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          from urllib.parse import urlsplit
+          raw=os.getenv('AOV_LICENSE_SERVER_URL','').strip()
+          if raw:
+              url=urlsplit(raw)
+              if url.scheme!='https' or not url.hostname or url.username or url.password or url.path not in ('','/') or url.query or url.fragment:
+                  raise SystemExit('Invalid AOV_LICENSE_SERVER_URL; expected an HTTPS origin')
+              raw=url.netloc and ('https://' + url.netloc)
+          # This is a PUBLIC API origin, NOT an Admin token/secret.
+          Path('_site/admin/config.js').write_text('window.TDS_CONFIG = Object.freeze({apiBaseUrl: '+json.dumps(raw)+'});\n')
+          print('Admin origin configured:',bool(raw))
+          PY
+          cat > _site/index.html <<'HTML'
+          <!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0; url=./admin/"><title>Trong Dung Studio Admin</title></head><body><a href="./admin/">Mở Admin</a></body></html>
+          HTML
+          test -s _site/admin/index.html
+          test -s _site/admin/config.js
+          ! grep -i 'LICENSE_ADMIN_TOKEN' _site/admin/config.js
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./_site
+      - name: Publish Admin website
+        id: deployment
+        uses: actions/deploy-pages@v4
